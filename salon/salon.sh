@@ -1,278 +1,80 @@
---
--- PostgreSQL database dump
---
+#!/bin/bash
 
--- Dumped from database version 12.9 (Ubuntu 12.9-2.pgdg20.04+1)
--- Dumped by pg_dump version 12.9 (Ubuntu 12.9-2.pgdg20.04+1)
+PSQL="psql -X -U freecodecamp -d salon --tuples-only -c"
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
+NAN() {
+  if [[ ! $1 =~ ^[0-9]+$ ]]
+  then
+    echo true
+  else
+    echo false
+  fi
+}
 
-DROP DATABASE salon;
---
--- Name: salon; Type: DATABASE; Schema: -; Owner: freecodecamp
---
+# GET_SERVICES() {
+#   echo "$($PSQL "SELECT * FROM services ORDER BY service_id")"
+# }
 
-CREATE DATABASE salon WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'C.UTF-8' LC_CTYPE = 'C.UTF-8';
+FORMAT() {
+  echo $1 | sed -E 's/^ *| *$//'
+}
 
+MAIN_MENU() {
+  if [[ -z $1 ]]
+  then
+    echo -e "Welcome to My Salon, how can I help you?\n"
+  else
+    echo -e "\n$1\n"
+  fi
 
-ALTER DATABASE salon OWNER TO freecodecamp;
+  SERVICES=$($PSQL "SELECT * FROM services ORDER BY service_id")
 
-\connect salon
+  echo "$SERVICES" | while read SERVICE_ID BAR SERVICE_NAME
+  do
+    echo "$SERVICE_ID) $SERVICE_NAME"
+  done
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
+  read SERVICE_ID_SELECTED
 
-SET default_tablespace = '';
+if [[ ! $SERVICE_ID_SELECTED =~ ^[0-9]+$ ]]
+  then
+    # invalid input
+    MAIN_MENU "I could not find that service. What would you like today?"
 
-SET default_table_access_method = heap;
+  else
+    # get service
+    SERVICE_NAME=$(FORMAT "$($PSQL "SELECT name FROM services WHERE service_id=$SERVICE_ID_SELECTED")")
 
---
--- Name: appointments; Type: TABLE; Schema: public; Owner: freecodecamp
---
+    # get user
+    echo -e "\nWhat's your phone number?"
+    read CUSTOMER_PHONE
+    CUSTOMER_NAME=$(FORMAT "$($PSQL "SELECT name FROM customers WHERE phone='$CUSTOMER_PHONE'")")
 
-CREATE TABLE public.appointments (
-    appointment_id integer NOT NULL,
-    customer_id integer,
-    service_id integer,
-    "time" character varying(15)
-);
+    if [[ -z $CUSTOMER_NAME ]]
+    then
+      # no user found
+      echo -e "\nI don't have a record for that phone number, what's your name?"
+      read CUSTOMER_NAME
 
+      INSERTED=$($PSQL "INSERT INTO customers(name, phone) VALUES('$CUSTOMER_NAME', '$CUSTOMER_PHONE')")
 
-ALTER TABLE public.appointments OWNER TO freecodecamp;
+    fi
 
---
--- Name: appointments_appointment_id_seq; Type: SEQUENCE; Schema: public; Owner: freecodecamp
---
+    # get customer id
+    CUSTOMER_ID=$($PSQL "SELECT customer_id FROM customers WHERE name='$CUSTOMER_NAME'")
 
-CREATE SEQUENCE public.appointments_appointment_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+    echo -e "\nWhat time would you like your $SERVICE_NAME, $CUSTOMER_NAME?"
+    read SERVICE_TIME
 
+    INSERTED=$($PSQL "INSERT INTO appointments(customer_id, service_id, time) VALUES($CUSTOMER_ID, $SERVICE_ID_SELECTED, '$SERVICE_TIME')")
 
-ALTER TABLE public.appointments_appointment_id_seq OWNER TO freecodecamp;
+    echo -e "\nI have put you down for a $SERVICE_NAME at $SERVICE_TIME, $CUSTOMER_NAME.\n"
 
---
--- Name: appointments_appointment_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: freecodecamp
---
+  fi
+}
 
-ALTER SEQUENCE public.appointments_appointment_id_seq OWNED BY public.appointments.appointment_id;
+### MAIN
 
+echo -e "\n~~~~~ MY SALON ~~~~~\n"
 
---
--- Name: customers; Type: TABLE; Schema: public; Owner: freecodecamp
---
-
-CREATE TABLE public.customers (
-    customer_id integer NOT NULL,
-    phone character varying(15),
-    name character varying(50)
-);
-
-
-ALTER TABLE public.customers OWNER TO freecodecamp;
-
---
--- Name: customers_customer_id_seq; Type: SEQUENCE; Schema: public; Owner: freecodecamp
---
-
-CREATE SEQUENCE public.customers_customer_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.customers_customer_id_seq OWNER TO freecodecamp;
-
---
--- Name: customers_customer_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: freecodecamp
---
-
-ALTER SEQUENCE public.customers_customer_id_seq OWNED BY public.customers.customer_id;
-
-
---
--- Name: services; Type: TABLE; Schema: public; Owner: freecodecamp
---
-
-CREATE TABLE public.services (
-    service_id integer NOT NULL,
-    name character varying(50)
-);
-
-
-ALTER TABLE public.services OWNER TO freecodecamp;
-
---
--- Name: services_service_id_seq; Type: SEQUENCE; Schema: public; Owner: freecodecamp
---
-
-CREATE SEQUENCE public.services_service_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.services_service_id_seq OWNER TO freecodecamp;
-
---
--- Name: services_service_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: freecodecamp
---
-
-ALTER SEQUENCE public.services_service_id_seq OWNED BY public.services.service_id;
-
-
---
--- Name: appointments appointment_id; Type: DEFAULT; Schema: public; Owner: freecodecamp
---
-
-ALTER TABLE ONLY public.appointments ALTER COLUMN appointment_id SET DEFAULT nextval('public.appointments_appointment_id_seq'::regclass);
-
-
---
--- Name: customers customer_id; Type: DEFAULT; Schema: public; Owner: freecodecamp
---
-
-ALTER TABLE ONLY public.customers ALTER COLUMN customer_id SET DEFAULT nextval('public.customers_customer_id_seq'::regclass);
-
-
---
--- Name: services service_id; Type: DEFAULT; Schema: public; Owner: freecodecamp
---
-
-ALTER TABLE ONLY public.services ALTER COLUMN service_id SET DEFAULT nextval('public.services_service_id_seq'::regclass);
-
-
---
--- Data for Name: appointments; Type: TABLE DATA; Schema: public; Owner: freecodecamp
---
-
-COPY public.appointments (appointment_id, customer_id, service_id, "time") FROM stdin;
-1	1	1	11am
-2	1	1	11.00
-3	2	2	11am
-\.
-
-
---
--- Data for Name: customers; Type: TABLE DATA; Schema: public; Owner: freecodecamp
---
-
-COPY public.customers (customer_id, phone, name) FROM stdin;
-1	12345	Ich
-2	123	Peter
-\.
-
-
---
--- Data for Name: services; Type: TABLE DATA; Schema: public; Owner: freecodecamp
---
-
-COPY public.services (service_id, name) FROM stdin;
-1	cut
-2	trim
-3	color
-4	perm
-5	style
-\.
-
-
---
--- Name: appointments_appointment_id_seq; Type: SEQUENCE SET; Schema: public; Owner: freecodecamp
---
-
-SELECT pg_catalog.setval('public.appointments_appointment_id_seq', 15, true);
-
-
---
--- Name: customers_customer_id_seq; Type: SEQUENCE SET; Schema: public; Owner: freecodecamp
---
-
-SELECT pg_catalog.setval('public.customers_customer_id_seq', 12, true);
-
-
---
--- Name: services_service_id_seq; Type: SEQUENCE SET; Schema: public; Owner: freecodecamp
---
-
-SELECT pg_catalog.setval('public.services_service_id_seq', 5, true);
-
-
---
--- Name: appointments appointments_pkey; Type: CONSTRAINT; Schema: public; Owner: freecodecamp
---
-
-ALTER TABLE ONLY public.appointments
-    ADD CONSTRAINT appointments_pkey PRIMARY KEY (appointment_id);
-
-
---
--- Name: customers customers_phone_key; Type: CONSTRAINT; Schema: public; Owner: freecodecamp
---
-
-ALTER TABLE ONLY public.customers
-    ADD CONSTRAINT customers_phone_key UNIQUE (phone);
-
-
---
--- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public; Owner: freecodecamp
---
-
-ALTER TABLE ONLY public.customers
-    ADD CONSTRAINT customers_pkey PRIMARY KEY (customer_id);
-
-
---
--- Name: services services_pkey; Type: CONSTRAINT; Schema: public; Owner: freecodecamp
---
-
-ALTER TABLE ONLY public.services
-    ADD CONSTRAINT services_pkey PRIMARY KEY (service_id);
-
-
---
--- Name: appointments appointments_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: freecodecamp
---
-
-ALTER TABLE ONLY public.appointments
-    ADD CONSTRAINT appointments_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(customer_id);
-
-
---
--- Name: appointments appointments_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: freecodecamp
---
-
-ALTER TABLE ONLY public.appointments
-    ADD CONSTRAINT appointments_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.services(service_id);
-
-
---
--- PostgreSQL database dump complete
---
-
+MAIN_MENU
